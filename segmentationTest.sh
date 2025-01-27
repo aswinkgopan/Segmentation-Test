@@ -767,10 +767,11 @@ main() {
     
     comprehensive_segmentation_test
 
-    generate_segmentation_reportping
-	log_message "INFO" "Scan completed successfully"
+    generate_segmentation_report
+   
     echo "Final report is available at: ${DIRECTORY}/SEGMENTATION_TEST_SUMMARY.txt"
     echo "You can view it using: cat ${DIRECTORY}/SEGMENTATION_TEST_SUMMARY.txt"
+    log_message "INFO" "Scan completed successfully"
 
 }
 
