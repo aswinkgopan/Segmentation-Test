@@ -4,6 +4,44 @@
 PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 export PATH
 
+# Add argument parsing
+usage() {
+    echo "Usage: $0 [-t TARGET_IP] [-n TARGET_NETWORK] [-i INTERFACE] [-d DIRECTORY]"
+    echo "  -t : Target IP address"
+    echo "  -n : Target network in CIDR notation (e.g., 192.168.1.0/24)"
+    echo "  -i : Network interface to use"
+    echo "  -d : Output directory (optional, will prompt if not provided)"
+    echo "Example: $0 -t 192.168.1.100 -n 192.168.1.0/24 -i eth0"
+    exit 1
+}
+
+# Parse command line arguments
+while getopts "t:n:i:d:h" opt; do
+    case $opt in
+        t) TARGET_IP="$OPTARG" ;;
+        n) TARGET_NETWORK="$OPTARG" ;;
+        i) ETH="$OPTARG" ;;
+        d) DIRECTORY="$OPTARG" ;;
+        h) usage ;;
+        ?) usage ;;
+    esac
+done
+
+# Validate required arguments
+if [ -z "$TARGET_IP" ] || [ -z "$TARGET_NETWORK" ] || [ -z "$ETH" ]; then
+    echo "ERROR: Missing required arguments"
+    usage
+fi
+
+# Prompt for work folder if not provided
+if [ -z "$DIRECTORY" ]; then
+    read -p "Enter the name of the work folder (default: segmentation_test): " DIRECTORY
+    DIRECTORY=${DIRECTORY:-segmentation_test}
+fi
+
+# Create the output directory
+mkdir -p "$DIRECTORY"
+
 cat << "EOF"
 
    _____                                    __        __  _                ______          __ 
@@ -169,44 +207,40 @@ init_directories()
 	export SECURITY_PATH SSL_PATH OS_PATH NETWORK_PATH APP_PATH PERF_PATH TMP_PATH
 }
 
-init_vars()
-{
-	init_directories
-	check_interface
+init_vars() {
+    # Use command line arguments instead of prompting
+    if [ -z "$DIRECTORY" ]; then
+        DIRECTORY="./segmentation_test_$(date +%Y%m%d_%H%M%S)"
+    fi
+    
+    init_directories
+    
+    # Validate interface
+    if ! ip link show "$ETH" > /dev/null 2>&1; then
+        echo "ERROR: Invalid interface $ETH"
+        exit 1
+    fi
+    
+    # Validate IP format
+    if ! echo "$TARGET_IP" | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}$' > /dev/null; then
+        echo "ERROR: Invalid IP address format"
+        exit 1
+    fi
 
-	# Add prompts for TARGET_IP and TARGET_NETWORK
-	echo -en "Enter Target IP Address: "
-	read -r TARGET_IP
-	
-	echo -en "Enter Target Network (CIDR notation, e.g., 192.168.1.0/24): "
-	read -r TARGET_NETWORK
+    # Validate CIDR format
+    if ! echo "$TARGET_NETWORK" | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]{1,2}$' > /dev/null; then
+        echo "ERROR: Invalid CIDR notation format"
+        exit 1
+    fi
 
-	# Validate inputs
-	if [ -z "$TARGET_IP" ] || [ -z "$TARGET_NETWORK" ]; then
-		echo "ERROR: Target IP and Network cannot be empty"
-		exit 1
-	fi
+    # Use TARGET_NETWORK for scope
+    echo "$TARGET_NETWORK" > "$TMP_PATH/scope.txt"
+    SCOPE="$TMP_PATH/scope.txt"
 
-	# Validate IP format
-	if ! echo "$TARGET_IP" | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}$' > /dev/null; then
-		echo "ERROR: Invalid IP address format"
-		exit 1
-	fi
-
-	# Validate CIDR format
-	if ! echo "$TARGET_NETWORK" | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]{1,2}$' > /dev/null; then
-		echo "ERROR: Invalid CIDR notation format"
-		exit 1
-	fi
-
-	# Use TARGET_NETWORK for scope
-	echo "$TARGET_NETWORK" > "$TMP_PATH/scope.txt"
-	SCOPE="$TMP_PATH/scope.txt"
-
-	rm -f "$TCP_PATH/hosts_complete_tcp.txt"
-	rm -f "$UDP_PATH/hosts_complete_udp.txt"
-	echo "TCP Hosts Scan Complete" > "$TCP_PATH/hosts_complete_tcp.txt"
-	echo "UDP Hosts Scan Complete" > "$UDP_PATH/hosts_complete_udp.txt"
+    rm -f "$TCP_PATH/hosts_complete_tcp.txt"
+    rm -f "$UDP_PATH/hosts_complete_udp.txt"
+    echo "TCP Hosts Scan Complete" > "$TCP_PATH/hosts_complete_tcp.txt"
+    echo "UDP Hosts Scan Complete" > "$UDP_PATH/hosts_complete_udp.txt"
 }
 
 split_machines()
